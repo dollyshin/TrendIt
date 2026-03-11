@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime as dt
 
 from fastapi_users.db import SQLAlchemyBaseUserTable
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Date, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -15,7 +15,7 @@ class User(SQLAlchemyBaseUserTable[int], Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     created_at: Mapped[dt.datetime] = mapped_column(
-        DateTime, default=lambda: dt.datetime.now(dt.timezone.utc)
+        default=lambda: dt.datetime.now(dt.timezone.utc)
     )
 
     portfolios: Mapped[list[Portfolio]] = relationship(back_populates="user", cascade="all, delete-orphan")
@@ -29,7 +29,7 @@ class Watchlist(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     name: Mapped[str] = mapped_column(String(200), default="Default")
     created_at: Mapped[dt.datetime] = mapped_column(
-        DateTime, default=lambda: dt.datetime.now(dt.timezone.utc)
+        default=lambda: dt.datetime.now(dt.timezone.utc)
     )
 
     user: Mapped[User] = relationship(back_populates="watchlists")
@@ -59,7 +59,7 @@ class Portfolio(Base):
     starting_cash: Mapped[float] = mapped_column(Float, default=10000.0)
     cash: Mapped[float] = mapped_column(Float, default=10000.0)
     created_at: Mapped[dt.datetime] = mapped_column(
-        DateTime, default=lambda: dt.datetime.now(dt.timezone.utc)
+        default=lambda: dt.datetime.now(dt.timezone.utc)
     )
 
     user: Mapped[User] = relationship(back_populates="portfolios")
@@ -91,7 +91,7 @@ class Transaction(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     portfolio_id: Mapped[int] = mapped_column(ForeignKey("portfolios.id"), index=True)
     created_at: Mapped[dt.datetime] = mapped_column(
-        DateTime, default=lambda: dt.datetime.now(dt.timezone.utc)
+        default=lambda: dt.datetime.now(dt.timezone.utc)
     )
 
     symbol: Mapped[str] = mapped_column(String(16), index=True)
@@ -109,7 +109,7 @@ class AnalysisRun(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     portfolio_id: Mapped[int] = mapped_column(ForeignKey("portfolios.id"), index=True)
     created_at: Mapped[dt.datetime] = mapped_column(
-        DateTime, default=lambda: dt.datetime.now(dt.timezone.utc)
+        default=lambda: dt.datetime.now(dt.timezone.utc)
     )
 
     status: Mapped[str] = mapped_column(String(32), default="queued")  # queued|running|succeeded|failed
