@@ -42,6 +42,9 @@ class WatchlistOut(BaseModel):
     name: str
     tickers: list[str]
 
+    class Config:
+        from_attributes = True
+
 
 class AnalysisRunCreate(BaseModel):
     portfolio_id: int
@@ -56,6 +59,9 @@ class AnalysisRunOut(BaseModel):
     tickers: list[str]
     memo_markdown: str | None = None
     error: str | None = None
+
+    class Config:
+        from_attributes = True
 
 
 class TickerResearchCreate(BaseModel):
