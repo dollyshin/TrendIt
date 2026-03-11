@@ -7,8 +7,7 @@ class Settings(BaseSettings):
     app_name: str = "TrendIt API"
     environment: str = "dev"
 
-    # MVP default: local SQLite; swap to Postgres later without code changes.
-    database_url: str = "sqlite:///./trendit.db"
+    database_url: str = "postgresql://trendit:trendit@localhost:5432/trendit"
 
     # Alpha Vantage configuration
     alpha_vantage_api_key: str | None = None

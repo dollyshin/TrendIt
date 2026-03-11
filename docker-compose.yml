@@ -1,16 +1,34 @@
 services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: trendit
+      POSTGRES_USER: trendit
+      POSTGRES_PASSWORD: trendit
+    ports:
+      - "5432:5432"
+    volumes:
+      - trendit_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trendit"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   api:
     build:
       context: ./api
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
-    volumes:
-      - trendit_data:/app/data
     env_file:
       - ./api/.env.local
     environment:
-      - DATABASE_URL=sqlite:////app/data/trendit.db
+      - DATABASE_URL=postgresql://trendit:trendit@db:5432/trendit
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
 
   web:
@@ -26,4 +44,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  trendit_data:
+  trendit_pgdata:
