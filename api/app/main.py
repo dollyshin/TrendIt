@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.analysis import generate_price_aware_memo, generate_ticker_research
-from app.db import Base, engine, get_db
+from app.db import Base, async_session_factory, engine, get_db
 from app.models import AnalysisRun, Portfolio, User, Watchlist, WatchlistTicker
 from app.schemas import (
     AnalysisRunCreate,
@@ -14,59 +16,97 @@ from app.schemas import (
     TickerResearchCreate,
     TickerResearchOut,
     UserCreate,
-    UserOut,
+    UserRead,
+    UserUpdate,
     WatchlistCreate,
     WatchlistOut,
 )
 from app.settings import settings
+from app.users import auth_backend, current_active_user, fastapi_users
 
 app = FastAPI(title=settings.app_name)
 
 
-@app.on_event("startup")
-def startup() -> None:
-    # MVP: create tables automatically. Replace with Alembic migrations soon.
-    Base.metadata.create_all(bind=engine)
+# ── Auth & user routes (FastAPI Users) ────────────────────────────────────────
 
+app.include_router(
+    fastapi_users.get_auth_router(auth_backend),
+    prefix="/auth/jwt",
+    tags=["auth"],
+)
+app.include_router(
+    fastapi_users.get_register_router(UserRead, UserCreate),
+    prefix="/auth",
+    tags=["auth"],
+)
+app.include_router(
+    fastapi_users.get_reset_password_router(),
+    prefix="/auth",
+    tags=["auth"],
+)
+app.include_router(
+    fastapi_users.get_verify_router(UserRead),
+    prefix="/auth",
+    tags=["auth"],
+)
+app.include_router(
+    fastapi_users.get_users_router(UserRead, UserUpdate),
+    prefix="/users",
+    tags=["users"],
+)
+
+
+# ── Startup ───────────────────────────────────────────────────────────────────
+
+@app.on_event("startup")
+async def startup() -> None:
+    # MVP: create tables automatically. Replace with Alembic migrations soon.
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+
+# ── Health ────────────────────────────────────────────────────────────────────
 
 @app.get("/health")
-def health() -> dict:
+async def health() -> dict:
     return {"ok": True, "app": settings.app_name, "env": settings.environment}
 
 
-@app.post("/users", response_model=UserOut)
-def create_user(payload: UserCreate, db: Session = Depends(get_db)) -> User:
-    existing = db.query(User).filter(User.email == payload.email).first()
-    if existing:
-        return existing
-
-    user = User(email=payload.email)
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
-
+# ── Watchlists ────────────────────────────────────────────────────────────────
 
 @app.get("/users/{user_id}/watchlists", response_model=list[WatchlistOut])
-def list_watchlists(user_id: int, db: Session = Depends(get_db)) -> list[WatchlistOut]:
-    user = db.get(User, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+async def list_watchlists(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(current_active_user),
+) -> list[WatchlistOut]:
+    if current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    result = await db.execute(
+        select(Watchlist)
+        .where(Watchlist.user_id == user_id)
+        .options(selectinload(Watchlist.tickers))
+    )
+    watchlists = result.scalars().all()
     return [
         WatchlistOut(id=w.id, user_id=w.user_id, name=w.name, tickers=[t.symbol for t in w.tickers])
-        for w in user.watchlists
+        for w in watchlists
     ]
 
 
 @app.post("/users/{user_id}/watchlists", response_model=WatchlistOut)
-def create_watchlist(user_id: int, payload: WatchlistCreate, db: Session = Depends(get_db)) -> WatchlistOut:
-    user = db.get(User, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+async def create_watchlist(
+    user_id: int,
+    payload: WatchlistCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(current_active_user),
+) -> WatchlistOut:
+    if current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
 
     wl = Watchlist(user_id=user_id, name=payload.name)
     db.add(wl)
-    db.flush()
+    await db.flush()
 
     for symbol in payload.tickers:
         s = symbol.strip().upper()
@@ -74,8 +114,14 @@ def create_watchlist(user_id: int, payload: WatchlistCreate, db: Session = Depen
             continue
         db.add(WatchlistTicker(watchlist_id=wl.id, symbol=s))
 
-    db.commit()
-    db.refresh(wl)
+    await db.commit()
+
+    result = await db.execute(
+        select(Watchlist)
+        .where(Watchlist.id == wl.id)
+        .options(selectinload(Watchlist.tickers))
+    )
+    wl = result.scalar_one()
     return WatchlistOut(
         id=wl.id,
         user_id=wl.user_id,
@@ -84,78 +130,92 @@ def create_watchlist(user_id: int, payload: WatchlistCreate, db: Session = Depen
     )
 
 
+# ── Portfolios ────────────────────────────────────────────────────────────────
+
 @app.get("/users/{user_id}/portfolios", response_model=list[PortfolioOut])
-def list_portfolios(user_id: int, db: Session = Depends(get_db)) -> list[Portfolio]:
-    user = db.get(User, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return list(user.portfolios)
+async def list_portfolios(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(current_active_user),
+) -> list[PortfolioOut]:
+    if current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    result = await db.execute(select(Portfolio).where(Portfolio.user_id == user_id))
+    return list(result.scalars().all())
 
 
 @app.post("/users/{user_id}/portfolios", response_model=PortfolioOut)
-def create_portfolio(user_id: int, payload: PortfolioCreate, db: Session = Depends(get_db)) -> Portfolio:
-    user = db.get(User, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+async def create_portfolio(
+    user_id: int,
+    payload: PortfolioCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(current_active_user),
+) -> Portfolio:
+    if current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
 
     p = Portfolio(user_id=user_id, name=payload.name, starting_cash=payload.starting_cash, cash=payload.starting_cash)
     db.add(p)
-    db.commit()
-    db.refresh(p)
+    await db.commit()
+    await db.refresh(p)
     return p
 
 
-def _run_analysis_job(*, analysis_run_id: int) -> None:
-    # NOTE: In-process background task for MVP. Later: queue + dedicated worker.
-    from app.db import SessionLocal
+# ── Analysis runs ─────────────────────────────────────────────────────────────
 
-    db = SessionLocal()
-    try:
-        run = db.get(AnalysisRun, analysis_run_id)
+async def _run_analysis_job(*, analysis_run_id: int) -> None:
+    # NOTE: In-process background task for MVP. Later: queue + dedicated worker.
+    async with async_session_factory() as db:
+        run = await db.get(AnalysisRun, analysis_run_id)
         if not run:
             return
 
         run.status = "running"
-        db.commit()
+        await db.commit()
 
-        tickers = run.tickers
-        portfolio = db.get(Portfolio, run.portfolio_id)
-        memo = generate_price_aware_memo(
-            db=db,
-            tickers=tickers,
-            starting_cash=portfolio.cash if portfolio else None,
-        )
-
-        run.memo_markdown = memo
-        run.status = "succeeded"
-        db.commit()
-    except Exception as e:  # noqa: BLE001 (MVP: capture errors)
-        run = db.get(AnalysisRun, analysis_run_id)
-        if run:
-            run.status = "failed"
-            run.error = str(e)
-            db.commit()
-    finally:
-        db.close()
+        try:
+            tickers = run.tickers
+            portfolio = await db.get(Portfolio, run.portfolio_id)
+            memo = await generate_price_aware_memo(
+                db=db,
+                tickers=tickers,
+                starting_cash=portfolio.cash if portfolio else None,
+            )
+            run.memo_markdown = memo
+            run.status = "succeeded"
+            await db.commit()
+        except Exception as e:  # noqa: BLE001
+            run = await db.get(AnalysisRun, analysis_run_id)
+            if run:
+                run.status = "failed"
+                run.error = str(e)
+                await db.commit()
 
 
 @app.post("/analysis-runs", response_model=AnalysisRunOut)
-def create_analysis_run(
+async def create_analysis_run(
     payload: AnalysisRunCreate,
     background: BackgroundTasks,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(current_active_user),
 ) -> AnalysisRunOut:
-    portfolio = db.get(Portfolio, payload.portfolio_id)
+    portfolio = await db.get(Portfolio, payload.portfolio_id)
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
+    if portfolio.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
 
     tickers: list[str] = []
     watchlist_name = "AdHoc"
 
     if payload.watchlist_id is not None:
-        wl = db.get(Watchlist, payload.watchlist_id)
+        wl = await db.get(Watchlist, payload.watchlist_id)
         if not wl or wl.user_id != portfolio.user_id:
             raise HTTPException(status_code=404, detail="Watchlist not found for this user")
+        result = await db.execute(
+            select(Watchlist).where(Watchlist.id == wl.id).options(selectinload(Watchlist.tickers))
+        )
+        wl = result.scalar_one()
         watchlist_name = wl.name
         tickers = [t.symbol for t in wl.tickers]
 
@@ -173,8 +233,8 @@ def create_analysis_run(
         tickers_csv=",".join(tickers),
     )
     db.add(run)
-    db.commit()
-    db.refresh(run)
+    await db.commit()
+    await db.refresh(run)
 
     background.add_task(_run_analysis_job, analysis_run_id=run.id)
 
@@ -189,17 +249,24 @@ def create_analysis_run(
 
 
 @app.get("/portfolios/{portfolio_id}/analysis-runs", response_model=list[AnalysisRunOut])
-def list_analysis_runs(portfolio_id: int, db: Session = Depends(get_db)) -> list[AnalysisRunOut]:
-    portfolio = db.get(Portfolio, portfolio_id)
+async def list_analysis_runs(
+    portfolio_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(current_active_user),
+) -> list[AnalysisRunOut]:
+    portfolio = await db.get(Portfolio, portfolio_id)
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
-    runs = (
-        db.query(AnalysisRun)
-        .filter(AnalysisRun.portfolio_id == portfolio_id)
+    if portfolio.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    result = await db.execute(
+        select(AnalysisRun)
+        .where(AnalysisRun.portfolio_id == portfolio_id)
         .order_by(AnalysisRun.id.desc())
         .limit(20)
-        .all()
     )
+    runs = result.scalars().all()
     return [
         AnalysisRunOut(
             id=r.id,
@@ -214,10 +281,17 @@ def list_analysis_runs(portfolio_id: int, db: Session = Depends(get_db)) -> list
 
 
 @app.get("/analysis-runs/{run_id}", response_model=AnalysisRunOut)
-def get_analysis_run(run_id: int, db: Session = Depends(get_db)) -> AnalysisRunOut:
-    run = db.get(AnalysisRun, run_id)
+async def get_analysis_run(
+    run_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(current_active_user),
+) -> AnalysisRunOut:
+    run = await db.get(AnalysisRun, run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Analysis run not found")
+    portfolio = await db.get(Portfolio, run.portfolio_id)
+    if not portfolio or portfolio.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
 
     return AnalysisRunOut(
         id=run.id,
@@ -229,13 +303,18 @@ def get_analysis_run(run_id: int, db: Session = Depends(get_db)) -> AnalysisRunO
     )
 
 
+# ── Ticker research ───────────────────────────────────────────────────────────
+
 @app.post("/ticker-research", response_model=TickerResearchOut)
-def create_ticker_research(payload: TickerResearchCreate, db: Session = Depends(get_db)) -> TickerResearchOut:
+async def create_ticker_research(
+    payload: TickerResearchCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(current_active_user),
+) -> TickerResearchOut:
     """On-demand deep-dive research for a single ticker. Runs synchronously."""
     ticker = payload.ticker.strip().upper()
     if not ticker:
         raise HTTPException(status_code=400, detail="Ticker symbol is required")
 
-    report = generate_ticker_research(db=db, ticker=ticker)
+    report = await generate_ticker_research(db=db, ticker=ticker)
     return TickerResearchOut(ticker=ticker, report_markdown=report)
-

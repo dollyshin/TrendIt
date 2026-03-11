@@ -1,19 +1,24 @@
 from __future__ import annotations
 
+from fastapi_users import schemas
 from pydantic import BaseModel, Field
 
 
-class UserCreate(BaseModel):
-    email: str
+# ── Auth / User ──────────────────────────────────────────────────────────────
+
+class UserRead(schemas.BaseUser[int]):
+    pass
 
 
-class UserOut(BaseModel):
-    id: int
-    email: str
+class UserCreate(schemas.BaseUserCreate):
+    pass
 
-    class Config:
-        from_attributes = True
 
+class UserUpdate(schemas.BaseUserUpdate):
+    pass
+
+
+# ── Portfolio ─────────────────────────────────────────────────────────────────
 
 class PortfolioCreate(BaseModel):
     name: str = "Main"
@@ -31,6 +36,8 @@ class PortfolioOut(BaseModel):
         from_attributes = True
 
 
+# ── Watchlist ─────────────────────────────────────────────────────────────────
+
 class WatchlistCreate(BaseModel):
     name: str = "Default"
     tickers: list[str] = Field(default_factory=list)
@@ -45,6 +52,8 @@ class WatchlistOut(BaseModel):
     class Config:
         from_attributes = True
 
+
+# ── Analysis ──────────────────────────────────────────────────────────────────
 
 class AnalysisRunCreate(BaseModel):
     portfolio_id: int
@@ -64,6 +73,8 @@ class AnalysisRunOut(BaseModel):
         from_attributes = True
 
 
+# ── Ticker research ───────────────────────────────────────────────────────────
+
 class TickerResearchCreate(BaseModel):
     ticker: str
 
@@ -71,4 +82,3 @@ class TickerResearchCreate(BaseModel):
 class TickerResearchOut(BaseModel):
     ticker: str
     report_markdown: str
-

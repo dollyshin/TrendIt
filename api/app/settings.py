@@ -7,7 +7,10 @@ class Settings(BaseSettings):
     app_name: str = "TrendIt API"
     environment: str = "dev"
 
-    database_url: str = "postgresql://trendit:trendit@localhost:5432/trendit"
+    database_url: str = "postgresql+asyncpg://trendit:trendit@localhost:5432/trendit"
+
+    # Auth — use any long random string in production
+    auth_secret: str = "dev-secret-change-in-production"
 
     # Alpha Vantage configuration
     alpha_vantage_api_key: str | None = None

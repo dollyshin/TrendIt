@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 from typing import Any
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.alpha_vantage import alpha_vantage_client
 from app.models import DailyPrice
@@ -31,38 +32,40 @@ def _parse_daily_adjusted(symbol: str, payload: dict[str, Any]) -> list[DailyPri
                 volume=float(values.get("6. volume", 0.0)),
             )
         )
-    # Sort ascending by date for convenience
     out.sort(key=lambda p: p.date)
     return out
 
 
-def ensure_daily_prices(db: Session, symbol: str, *, min_days: int = 60) -> list[DailyPrice]:
+async def ensure_daily_prices(db: AsyncSession, symbol: str, *, min_days: int = 60) -> list[DailyPrice]:
     """Return at least `min_days` of daily prices, fetching from Alpha Vantage if needed."""
     symbol = symbol.upper()
-    existing = db.scalars(
+    result = await db.execute(
         select(DailyPrice).where(DailyPrice.symbol == symbol).order_by(DailyPrice.date.asc())
-    ).all()
+    )
+    existing = list(result.scalars().all())
 
     if len(existing) >= min_days:
         return existing
 
-    # Fetch from Alpha Vantage (compact: ~100 most recent trading days)
-    payload = alpha_vantage_client.get_daily_adjusted(symbol=symbol, outputsize="compact")
+    # Alpha Vantage client is sync — run in a thread to avoid blocking the event loop
+    payload = await asyncio.to_thread(
+        alpha_vantage_client.get_daily_adjusted, symbol=symbol, outputsize="compact"
+    )
     rows = _parse_daily_adjusted(symbol, payload)
 
-    # Upsert naïvely: rely on unique constraint to avoid duplicates on re-fetch
     for row in rows:
-        db.merge(row)
-    db.commit()
+        await db.merge(row)
+    await db.commit()
 
-    return db.scalars(
+    result = await db.execute(
         select(DailyPrice).where(DailyPrice.symbol == symbol).order_by(DailyPrice.date.asc())
-    ).all()
+    )
+    return list(result.scalars().all())
 
 
-def latest_snapshot(db: Session, symbol: str) -> dict[str, Any]:
+async def latest_snapshot(db: AsyncSession, symbol: str) -> dict[str, Any]:
     """Return a simple snapshot for the analysis memo."""
-    prices = ensure_daily_prices(db, symbol, min_days=60)
+    prices = await ensure_daily_prices(db, symbol, min_days=60)
     if not prices:
         raise RuntimeError(f"No price data for {symbol}")
 
@@ -73,7 +76,6 @@ def latest_snapshot(db: Session, symbol: str) -> dict[str, Any]:
     if first.adjusted_close:
         pct_change = (latest.adjusted_close / first.adjusted_close - 1.0) * 100.0
 
-    # Simple rolling volatility proxy: last 20 days
     tail = prices[-20:] if len(prices) >= 20 else prices
     closes = [p.adjusted_close for p in tail]
     avg = sum(closes) / len(closes)
@@ -88,4 +90,3 @@ def latest_snapshot(db: Session, symbol: str) -> dict[str, Any]:
         "period_pct_change": pct_change,
         "recent_volatility": vol,
     }
-

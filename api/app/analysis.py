@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 from typing import Any
 
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services_prices import latest_snapshot
 
@@ -16,13 +17,13 @@ SYSTEM_PROMPT = """You are an investment analyst for a paper-trading simulation.
 5. Clearly states this is for educational/paper-trading purposes only, not investment advice."""
 
 
-def _gather_snapshots(db: Session, tickers: list[str]) -> tuple[list[dict[str, Any]], list[str]]:
+async def _gather_snapshots(db: AsyncSession, tickers: list[str]) -> tuple[list[dict[str, Any]], list[str]]:
     """Return (successful snapshots, error messages for failed tickers)."""
     snapshots: list[dict[str, Any]] = []
     errors: list[str] = []
     for symbol in tickers:
         try:
-            snap = latest_snapshot(db, symbol)
+            snap = await latest_snapshot(db, symbol)
             snapshots.append(snap)
         except Exception as e:  # noqa: BLE001
             errors.append(f"{symbol}: {e}")
@@ -45,16 +46,16 @@ def _build_context(snapshots: list[dict[str, Any]], starting_cash: float | None)
     return "\n".join(lines)
 
 
-def generate_price_aware_memo(
+async def generate_price_aware_memo(
     *,
-    db: Session,
+    db: AsyncSession,
     tickers: list[str],
     starting_cash: float | None = None,
 ) -> str:
     """Generate a memo using Alpha Vantage data. Uses LLM if API key is set, else a simple template."""
 
     now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    snapshots, errors = _gather_snapshots(db, tickers)
+    snapshots, errors = await _gather_snapshots(db, tickers)
 
     if not snapshots:
         return (
@@ -64,7 +65,6 @@ def generate_price_aware_memo(
             + ("Errors: " + "; ".join(errors) if errors else "Check ticker symbols and Alpha Vantage API key.")
         )
 
-    # Try LLM if configured
     try:
         from app.llm import get_llm_client
 
@@ -77,10 +77,11 @@ def generate_price_aware_memo(
             )
             if errors:
                 user_prompt += f"\n\nNote: Some tickers failed to fetch: {'; '.join(errors)}"
-            raw = client.complete(system=SYSTEM_PROMPT, user=user_prompt)
+            # LLM client is sync — run in thread to avoid blocking the event loop
+            raw = await asyncio.to_thread(client.complete, system=SYSTEM_PROMPT, user=user_prompt)
             return f"# TrendIt Analysis Memo\n\n**Generated**: {now}\n\n{raw}"
-    except Exception as e:  # noqa: BLE001
-        pass  # Fall through to template
+    except Exception:  # noqa: BLE001
+        pass
 
     # Fallback: template memo without LLM
     lines: list[str] = []
@@ -135,7 +136,7 @@ Your report must:
 6. State this is for educational/paper-trading only, not investment advice."""
 
 
-def generate_ticker_research(*, db: Session, ticker: str) -> str:
+async def generate_ticker_research(*, db: AsyncSession, ticker: str) -> str:
     """Generate an on-demand deep-dive research report for a single ticker."""
     symbol = ticker.strip().upper()
     if not symbol:
@@ -144,7 +145,7 @@ def generate_ticker_research(*, db: Session, ticker: str) -> str:
     now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
     try:
-        snap = latest_snapshot(db, symbol)
+        snap = await latest_snapshot(db, symbol)
     except Exception as e:  # noqa: BLE001
         return (
             f"# Ticker Research: {symbol}\n\n"
@@ -165,12 +166,11 @@ def generate_ticker_research(*, db: Session, ticker: str) -> str:
         client = get_llm_client()
         if client:
             user_prompt = f"Write a research report for {symbol}. Data as of {now} UTC:\n\n{context}"
-            raw = client.complete(system=TICKER_RESEARCH_SYSTEM_PROMPT, user=user_prompt)
+            raw = await asyncio.to_thread(client.complete, system=TICKER_RESEARCH_SYSTEM_PROMPT, user=user_prompt)
             return f"# Ticker Research: {symbol}\n\n**Generated**: {now}\n\n{raw}"
     except Exception:  # noqa: BLE001
         pass
 
-    # Fallback template
     return (
         f"# Ticker Research: {symbol}\n\n"
         f"**Generated**: {now}\n\n"
