@@ -39,6 +39,7 @@ class Watchlist(Base):
 
 class WatchlistTicker(Base):
     __tablename__ = "watchlist_tickers"
+    __table_args__ = (UniqueConstraint("watchlist_id", "symbol", name="uq_watchlist_tickers_watchlist_symbol"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     watchlist_id: Mapped[int] = mapped_column(ForeignKey("watchlists.id"), index=True)
@@ -72,6 +73,7 @@ class Portfolio(Base):
 
 class Position(Base):
     __tablename__ = "positions"
+    __table_args__ = (UniqueConstraint("portfolio_id", "symbol", name="uq_positions_portfolio_symbol"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     portfolio_id: Mapped[int] = mapped_column(ForeignKey("portfolios.id"), index=True)
