@@ -4,6 +4,7 @@ import datetime as dt
 
 from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.ext.hybrid import hybrid_property
 
 from app.db import Base
 
@@ -118,6 +119,10 @@ class AnalysisRun(Base):
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     portfolio: Mapped[Portfolio] = relationship(back_populates="analysis_runs")
+
+    @hybrid_property
+    def tickers(self) -> list[str]:
+        return [t.strip().upper() for t in (self.tickers_csv or "").split(",") if t.strip()]
 
 
 class DailyPrice(Base):

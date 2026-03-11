@@ -118,7 +118,7 @@ def _run_analysis_job(*, analysis_run_id: int) -> None:
         run.status = "running"
         db.commit()
 
-        tickers = [t.strip().upper() for t in (run.tickers_csv or "").split(",") if t.strip()]
+        tickers = run.tickers
         portfolio = db.get(Portfolio, run.portfolio_id)
         memo = generate_price_aware_memo(
             db=db,
@@ -205,7 +205,7 @@ def list_analysis_runs(portfolio_id: int, db: Session = Depends(get_db)) -> list
             id=r.id,
             portfolio_id=r.portfolio_id,
             status=r.status,
-            tickers=[t.strip().upper() for t in (r.tickers_csv or "").split(",") if t.strip()],
+            tickers=r.tickers,
             memo_markdown=r.memo_markdown,
             error=r.error,
         )
@@ -219,12 +219,11 @@ def get_analysis_run(run_id: int, db: Session = Depends(get_db)) -> AnalysisRunO
     if not run:
         raise HTTPException(status_code=404, detail="Analysis run not found")
 
-    tickers = [t.strip().upper() for t in (run.tickers_csv or "").split(",") if t.strip()]
     return AnalysisRunOut(
         id=run.id,
         portfolio_id=run.portfolio_id,
         status=run.status,
-        tickers=tickers,
+        tickers=run.tickers,
         memo_markdown=run.memo_markdown,
         error=run.error,
     )
