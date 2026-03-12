@@ -9,13 +9,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Application code
 COPY app/ ./app/
-
-# Data directory for SQLite (persisted via volume)
-RUN mkdir -p /app/data
+COPY alembic/ ./alembic/
+COPY alembic.ini .
 
 EXPOSE 8000
 
-# Default: SQLite in /app/data (override via DATABASE_URL)
-ENV DATABASE_URL=sqlite:////app/data/trendit.db
-
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]

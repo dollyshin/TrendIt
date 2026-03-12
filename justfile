@@ -34,6 +34,10 @@ logs service="":
 test:
     docker compose --profile test run --rm --build test
 
+# Run Alembic migrations inside the running API container
+migrate:
+    docker compose exec api alembic upgrade head
+
 # ── Code quality ──────────────────────────────────────────────────────────────
 
 # Lint Python (ruff) and TypeScript/JSX (eslint) — requires: pip install ruff

@@ -25,8 +25,3 @@ to a different loop" errors. Each test gets a fresh `drop_all` + `create_all`.
 from crashed test runs hold locks and cause `drop_all` to hang indefinitely.
 This is why `conftest.py` terminates connections before each test fixture runs.
 
-## Known debt
-
-- Alembic is in `requirements.txt` but not wired up — the app uses
-  `create_all` at startup. Needs migration before any production schema change.
-- `@app.on_event("startup")` should be migrated to a `lifespan` handler.

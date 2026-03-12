@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.analysis import generate_price_aware_memo, generate_ticker_research
-from app.db import Base, async_session_factory, engine, get_db
+from app.db import async_session_factory, get_db
 from app.models import AnalysisRun, Portfolio, User, Watchlist, WatchlistTicker
 from app.schemas import (
     AnalysisRunCreate,
@@ -24,7 +26,12 @@ from app.schemas import (
 from app.settings import settings
 from app.users import auth_backend, current_active_user, fastapi_users
 
-app = FastAPI(title=settings.app_name)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+
+
+app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 
 # ── Auth & user routes (FastAPI Users) ────────────────────────────────────────
@@ -54,15 +61,6 @@ app.include_router(
     prefix="/users",
     tags=["users"],
 )
-
-
-# ── Startup ───────────────────────────────────────────────────────────────────
-
-@app.on_event("startup")
-async def startup() -> None:
-    # MVP: create tables automatically. Replace with Alembic migrations soon.
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
