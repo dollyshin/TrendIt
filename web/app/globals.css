@@ -14,7 +14,10 @@
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
   background: var(--bg);
   color: var(--text);
   line-height: 1.6;
@@ -72,7 +75,8 @@ nav a {
   cursor: not-allowed;
 }
 
-input, select {
+input,
+select {
   padding: 0.5rem 0.75rem;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -87,10 +91,37 @@ input:focus {
 }
 
 /* Markdown content */
-.markdown h1 { font-size: 1.5rem; margin-top: 1.5rem; margin-bottom: 0.75rem; }
-.markdown h2 { font-size: 1.25rem; margin-top: 1.25rem; margin-bottom: 0.5rem; }
-.markdown h3 { font-size: 1.1rem; margin-top: 1rem; margin-bottom: 0.5rem; }
-.markdown p { margin: 0.5rem 0; }
-.markdown ul { margin: 0.5rem 0; padding-left: 1.5rem; }
-.markdown code { background: var(--surface); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; }
-.markdown pre { background: var(--surface); padding: 1rem; border-radius: 6px; overflow-x: auto; }
+.markdown h1 {
+  font-size: 1.5rem;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+.markdown h2 {
+  font-size: 1.25rem;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+.markdown h3 {
+  font-size: 1.1rem;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+.markdown p {
+  margin: 0.5rem 0;
+}
+.markdown ul {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+.markdown code {
+  background: var(--surface);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+.markdown pre {
+  background: var(--surface);
+  padding: 1rem;
+  border-radius: 6px;
+  overflow-x: auto;
+}

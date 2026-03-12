@@ -1,17 +1,13 @@
-import type { Metadata } from 'next';
-import './globals.css';
-import NavBar from './components/NavBar';
+import type { Metadata } from 'next'
+import './globals.css'
+import NavBar from './components/NavBar'
 
 export const metadata: Metadata = {
   title: 'TrendIt',
   description: 'Virtual investing with explainable AI analysis',
-};
+}
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
@@ -19,5 +15,5 @@ export default function RootLayout({
         {children}
       </body>
     </html>
-  );
+  )
 }

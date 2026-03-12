@@ -1,16 +1,16 @@
-'use client';
+'use client'
 
-import { useRouter } from 'next/navigation';
-import { getToken, apiLogout } from '@/lib/auth';
+import { useRouter } from 'next/navigation'
+import { getToken, apiLogout } from '@/lib/auth'
 
 export default function NavBar() {
-  const router = useRouter();
-  const token = getToken();
+  const router = useRouter()
+  const token = getToken()
 
   const logout = async () => {
-    if (token) await apiLogout(token);
-    router.push('/login');
-  };
+    if (token) await apiLogout(token)
+    router.push('/login')
+  }
 
   return (
     <nav>
@@ -22,5 +22,5 @@ export default function NavBar() {
         </button>
       )}
     </nav>
-  );
+  )
 }

@@ -1,107 +1,126 @@
-'use client';
+'use client'
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { authGet, authPost } from '@/lib/api';
-import { getToken } from '@/lib/auth';
-import type { User, Portfolio, Watchlist, AnalysisRun } from '@/lib/api';
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { authGet, authPost } from '@/lib/api'
+import { getToken } from '@/lib/auth'
+import type { User, Portfolio, Watchlist, AnalysisRun } from '@/lib/api'
 
 export default function Dashboard() {
-  const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
-  const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
-  const [runs, setRuns] = useState<AnalysisRun[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const router = useRouter()
+  const [user, setUser] = useState<User | null>(null)
+  const [portfolios, setPortfolios] = useState<Portfolio[]>([])
+  const [watchlists, setWatchlists] = useState<Watchlist[]>([])
+  const [runs, setRuns] = useState<AnalysisRun[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const token = getToken();
+    const token = getToken()
     if (!token) {
-      router.push('/login');
-      return;
+      router.push('/login')
+      return
     }
-    loadDashboard(token);
-  }, []);
+    loadDashboard(token)
+  }, [])
 
   const loadDashboard = async (token: string) => {
-    setError(null);
+    setError(null)
     try {
-      const u = await authGet<User>('/users/me', token);
-      setUser(u);
+      const u = await authGet<User>('/users/me', token)
+      setUser(u)
       const [ps, wls] = await Promise.all([
         authGet<Portfolio[]>(`/users/${u.id}/portfolios`, token).catch(() => []),
         authGet<Watchlist[]>(`/users/${u.id}/watchlists`, token).catch(() => []),
-      ]);
-      setPortfolios(Array.isArray(ps) ? ps : []);
-      setWatchlists(Array.isArray(wls) ? wls : []);
+      ])
+      setPortfolios(Array.isArray(ps) ? ps : [])
+      setWatchlists(Array.isArray(wls) ? wls : [])
       if (Array.isArray(ps) && ps.length > 0) {
-        const portfolioRuns = await authGet<AnalysisRun[]>(`/portfolios/${ps[0].id}/analysis-runs`, token).catch(() => []);
-        setRuns(Array.isArray(portfolioRuns) ? portfolioRuns : []);
+        const portfolioRuns = await authGet<AnalysisRun[]>(
+          `/portfolios/${ps[0].id}/analysis-runs`,
+          token
+        ).catch(() => [])
+        setRuns(Array.isArray(portfolioRuns) ? portfolioRuns : [])
       }
     } catch (e) {
-      setError(String(e));
+      setError(String(e))
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
-  const token = () => getToken()!;
+  const token = () => getToken()!
 
   const createPortfolio = async () => {
     try {
-      const p = await authPost<Portfolio>(`/users/${user!.id}/portfolios`, {
-        name: 'Main',
-        starting_cash: 10000,
-      }, token());
-      setPortfolios((prev) => [...prev, p]);
+      const p = await authPost<Portfolio>(
+        `/users/${user!.id}/portfolios`,
+        {
+          name: 'Main',
+          starting_cash: 10000,
+        },
+        token()
+      )
+      setPortfolios((prev) => [...prev, p])
     } catch (e) {
-      setError(String(e));
+      setError(String(e))
     }
-  };
+  }
 
   const createWatchlist = async () => {
     try {
-      const w = await authPost<Watchlist>(`/users/${user!.id}/watchlists`, {
-        name: 'Tech',
-        tickers: ['AAPL', 'MSFT', 'GOOGL'],
-      }, token());
-      setWatchlists((prev) => [...prev, w]);
+      const w = await authPost<Watchlist>(
+        `/users/${user!.id}/watchlists`,
+        {
+          name: 'Tech',
+          tickers: ['AAPL', 'MSFT', 'GOOGL'],
+        },
+        token()
+      )
+      setWatchlists((prev) => [...prev, w])
     } catch (e) {
-      setError(String(e));
+      setError(String(e))
     }
-  };
+  }
 
   const runAnalysis = async () => {
-    const portfolio = portfolios[0];
-    const watchlist = watchlists[0];
+    const portfolio = portfolios[0]
+    const watchlist = watchlists[0]
     if (!portfolio || !watchlist) {
-      setError('Create a portfolio and watchlist first');
-      return;
+      setError('Create a portfolio and watchlist first')
+      return
     }
-    setLoading(true);
-    setError(null);
+    setLoading(true)
+    setError(null)
     try {
-      const run = await authPost<AnalysisRun>('/analysis-runs', {
-        portfolio_id: portfolio.id,
-        watchlist_id: watchlist.id,
-      }, token());
-      setRuns((prev) => [run, ...prev]);
-      let r = run;
+      const run = await authPost<AnalysisRun>(
+        '/analysis-runs',
+        {
+          portfolio_id: portfolio.id,
+          watchlist_id: watchlist.id,
+        },
+        token()
+      )
+      setRuns((prev) => [run, ...prev])
+      let r = run
       while (r.status === 'queued' || r.status === 'running') {
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        r = await authGet<AnalysisRun>(`/analysis-runs/${run.id}`, token());
-        setRuns((prev) => prev.map((x) => (x.id === run.id ? r : x)));
+        await new Promise((resolve) => setTimeout(resolve, 1500))
+        r = await authGet<AnalysisRun>(`/analysis-runs/${run.id}`, token())
+        setRuns((prev) => prev.map((x) => (x.id === run.id ? r : x)))
       }
     } catch (e) {
-      setError(String(e));
+      setError(String(e))
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   if (loading) {
-    return <main className="container"><p>Loading…</p></main>;
+    return (
+      <main className="container">
+        <p>Loading…</p>
+      </main>
+    )
   }
 
   return (
@@ -118,7 +137,9 @@ export default function Dashboard() {
         <>
           <div className="card">
             <h2>User</h2>
-            <p>{user.email} (id: {user.id})</p>
+            <p>
+              {user.email} (id: {user.id})
+            </p>
           </div>
 
           <div className="card">
@@ -184,5 +205,5 @@ export default function Dashboard() {
         </>
       )}
     </main>
-  );
+  )
 }

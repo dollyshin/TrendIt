@@ -1,32 +1,32 @@
-'use client';
+'use client'
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { apiRegister, apiLogin, setToken } from '@/lib/auth';
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { apiRegister, apiLogin, setToken } from '@/lib/auth'
 
 export default function RegisterPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const router = useRouter()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
     try {
-      await apiRegister(email, password);
-      const token = await apiLogin(email, password);
-      setToken(token);
-      router.push('/');
+      await apiRegister(email, password)
+      const token = await apiLogin(email, password)
+      setToken(token)
+      router.push('/')
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(msg);
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(msg)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
     <main className="container">
@@ -65,5 +65,5 @@ export default function RegisterPage() {
         </p>
       </div>
     </main>
-  );
+  )
 }
