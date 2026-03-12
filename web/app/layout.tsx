@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import NavBar from './components/NavBar';
 
 export const metadata: Metadata = {
   title: 'TrendIt',
@@ -14,10 +15,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <nav>
-          <a href="/">Dashboard</a>
-          <a href="/research">Ticker Research</a>
-        </nav>
+        <NavBar />
         {children}
       </body>
     </html>

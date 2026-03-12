@@ -1,32 +1,42 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { get, post } from '@/lib/api';
+import { useRouter } from 'next/navigation';
+import { authGet, authPost } from '@/lib/api';
+import { getToken } from '@/lib/auth';
 import type { User, Portfolio, Watchlist, AnalysisRun } from '@/lib/api';
 
 export default function Dashboard() {
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
   const [runs, setRuns] = useState<AnalysisRun[]>([]);
-  const [email, setEmail] = useState('demo@trendit.local');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const initUser = async () => {
-    setLoading(true);
+  useEffect(() => {
+    const token = getToken();
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+    loadDashboard(token);
+  }, []);
+
+  const loadDashboard = async (token: string) => {
     setError(null);
     try {
-      const u = await post<User>('/users', { email });
+      const u = await authGet<User>('/users/me', token);
       setUser(u);
       const [ps, wls] = await Promise.all([
-        get<Portfolio[]>(`/users/${u.id}/portfolios`).catch(() => []),
-        get<Watchlist[]>(`/users/${u.id}/watchlists`).catch(() => []),
+        authGet<Portfolio[]>(`/users/${u.id}/portfolios`, token).catch(() => []),
+        authGet<Watchlist[]>(`/users/${u.id}/watchlists`, token).catch(() => []),
       ]);
       setPortfolios(Array.isArray(ps) ? ps : []);
       setWatchlists(Array.isArray(wls) ? wls : []);
       if (Array.isArray(ps) && ps.length > 0) {
-        const portfolioRuns = await get<AnalysisRun[]>(`/portfolios/${ps[0].id}/analysis-runs`).catch(() => []);
+        const portfolioRuns = await authGet<AnalysisRun[]>(`/portfolios/${ps[0].id}/analysis-runs`, token).catch(() => []);
         setRuns(Array.isArray(portfolioRuns) ? portfolioRuns : []);
       }
     } catch (e) {
@@ -36,17 +46,14 @@ export default function Dashboard() {
     }
   };
 
-  useEffect(() => {
-    get<{ ok: boolean }>('/health').catch(() => setError('API unreachable'));
-  }, []);
+  const token = () => getToken()!;
 
   const createPortfolio = async () => {
-    if (!user) return;
     try {
-      const p = await post<Portfolio>('/users/' + user.id + '/portfolios', {
+      const p = await authPost<Portfolio>(`/users/${user!.id}/portfolios`, {
         name: 'Main',
         starting_cash: 10000,
-      });
+      }, token());
       setPortfolios((prev) => [...prev, p]);
     } catch (e) {
       setError(String(e));
@@ -54,12 +61,11 @@ export default function Dashboard() {
   };
 
   const createWatchlist = async () => {
-    if (!user) return;
     try {
-      const w = await post<Watchlist>('/users/' + user.id + '/watchlists', {
+      const w = await authPost<Watchlist>(`/users/${user!.id}/watchlists`, {
         name: 'Tech',
         tickers: ['AAPL', 'MSFT', 'GOOGL'],
-      });
+      }, token());
       setWatchlists((prev) => [...prev, w]);
     } catch (e) {
       setError(String(e));
@@ -76,16 +82,15 @@ export default function Dashboard() {
     setLoading(true);
     setError(null);
     try {
-      const run = await post<AnalysisRun>('/analysis-runs', {
+      const run = await authPost<AnalysisRun>('/analysis-runs', {
         portfolio_id: portfolio.id,
         watchlist_id: watchlist.id,
-      });
+      }, token());
       setRuns((prev) => [run, ...prev]);
-      // Poll until done
       let r = run;
       while (r.status === 'queued' || r.status === 'running') {
         await new Promise((resolve) => setTimeout(resolve, 1500));
-        r = await get<AnalysisRun>(`/analysis-runs/${run.id}`);
+        r = await authGet<AnalysisRun>(`/analysis-runs/${run.id}`, token());
         setRuns((prev) => prev.map((x) => (x.id === run.id ? r : x)));
       }
     } catch (e) {
@@ -94,6 +99,10 @@ export default function Dashboard() {
       setLoading(false);
     }
   };
+
+  if (loading) {
+    return <main className="container"><p>Loading…</p></main>;
+  }
 
   return (
     <main className="container">
@@ -105,21 +114,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {!user ? (
-        <div className="card">
-          <h2>Get started</h2>
-          <p>Create a user to manage portfolios and run analysis.</p>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
-          />
-          <button className="btn" onClick={initUser} disabled={loading} style={{ marginLeft: '0.5rem' }}>
-            Create user
-          </button>
-        </div>
-      ) : (
+      {user && (
         <>
           <div className="card">
             <h2>User</h2>

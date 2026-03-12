@@ -1,19 +1,29 @@
-const API = '/api';
+import axios from 'axios';
+
+const api = axios.create({ baseURL: '/api' });
 
 export async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${API}${path}`);
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  const { data } = await api.get<T>(path);
+  return data;
 }
 
 export async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+  const { data } = await api.post<T>(path, body);
+  return data;
+}
+
+export async function authGet<T>(path: string, token: string): Promise<T> {
+  const { data } = await api.get<T>(path, {
+    headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  return data;
+}
+
+export async function authPost<T>(path: string, body: unknown, token: string): Promise<T> {
+  const { data } = await api.post<T>(path, body, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return data;
 }
 
 export type User = { id: number; email: string };
