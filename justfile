@@ -34,6 +34,18 @@ logs service="":
 test:
     docker compose --profile test run --rm --build test
 
+# ── Code quality ──────────────────────────────────────────────────────────────
+
+# Lint Python (ruff) and TypeScript/JSX (eslint) — requires: pip install ruff
+lint:
+    ruff check api/app api/tests
+    cd web && npm run lint
+
+# Format and auto-fix Python — requires: pip install ruff
+fmt:
+    ruff format api/app api/tests
+    ruff check --fix api/app api/tests
+
 # ── Shells ────────────────────────────────────────────────────────────────────
 
 # Open a psql shell in the database container
