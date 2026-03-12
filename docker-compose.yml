@@ -31,6 +31,17 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  test:
+    profiles: [test]
+    build:
+      context: ./api
+      dockerfile: Dockerfile.test
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://trendit:trendit@db:5432/trendit
+    depends_on:
+      db:
+        condition: service_healthy
+
   web:
     build:
       context: ./web
