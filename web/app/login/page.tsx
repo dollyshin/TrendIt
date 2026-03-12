@@ -34,8 +34,9 @@ export default function LoginPage() {
         {error && <p style={{ color: '#ef4444' }}>{error}</p>}
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: '0.75rem' }}>
-            <label>Email</label>
+            <label htmlFor="email">Email</label>
             <input
+              id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -44,8 +45,9 @@ export default function LoginPage() {
             />
           </div>
           <div style={{ marginBottom: '1rem' }}>
-            <label>Password</label>
+            <label htmlFor="password">Password</label>
             <input
+              id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
