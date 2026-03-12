@@ -10,6 +10,10 @@ trigger AI-powered analysis runs that fetch price data and produce research memo
 - **DB:** PostgreSQL 17 (Docker)
 - **Tasks:** `just` — run `just` to list all commands
 
+## Workflow
+
+After making changes, commit with a succinct descriptive message and push.
+
 ## Non-obvious rules
 
 **`type_annotation_map` handles datetime timezone globally** — `Base` in
