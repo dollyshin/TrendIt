@@ -1,15 +1,22 @@
 'use client'
 
-import { useState } from 'react'
-import { post } from '@/lib/api'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { authPost } from '@/lib/api'
+import { getToken } from '@/lib/auth'
 import type { TickerResearch } from '@/lib/api'
 import ReactMarkdown from 'react-markdown'
 
 export default function ResearchPage() {
+  const router = useRouter()
   const [ticker, setTicker] = useState('')
   const [report, setReport] = useState<TickerResearch | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!getToken()) router.push('/login')
+  }, [])
 
   const runResearch = async () => {
     const sym = ticker.trim().toUpperCase()
@@ -21,7 +28,7 @@ export default function ResearchPage() {
     setError(null)
     setReport(null)
     try {
-      const r = await post<TickerResearch>('/ticker-research', { ticker: sym })
+      const r = await authPost<TickerResearch>('/ticker-research', { ticker: sym }, getToken()!)
       setReport(r)
     } catch (e) {
       setError(String(e))

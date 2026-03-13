@@ -1,20 +1,27 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams } from 'next/navigation'
-import { get } from '@/lib/api'
+import { useParams, useRouter } from 'next/navigation'
+import { authGet } from '@/lib/api'
+import { getToken } from '@/lib/auth'
 import type { AnalysisRun } from '@/lib/api'
 import ReactMarkdown from 'react-markdown'
 
 export default function AnalysisPage() {
+  const router = useRouter()
   const params = useParams()
   const id = params?.id as string
   const [run, setRun] = useState<AnalysisRun | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    const token = getToken()
+    if (!token) {
+      router.push('/login')
+      return
+    }
     if (!id) return
-    get<AnalysisRun>(`/analysis-runs/${id}`)
+    authGet<AnalysisRun>(`/analysis-runs/${id}`, token)
       .then(setRun)
       .catch((e) => setError(String(e)))
   }, [id])
