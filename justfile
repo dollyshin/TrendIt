@@ -2,6 +2,14 @@
 default:
     @just --list
 
+# ── Setup ─────────────────────────────────────────────────────────────────────
+
+# Configure git to use the committed hooks directory
+install-hooks:
+    git config core.hooksPath scripts/hooks
+    chmod +x scripts/hooks/pre-commit scripts/hooks/pre-push
+    @echo "hooks installed"
+
 # ── Services ──────────────────────────────────────────────────────────────────
 
 # Start all services (db + api + web) in the background

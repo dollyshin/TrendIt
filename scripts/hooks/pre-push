@@ -1,0 +1,19 @@
+#!/bin/sh
+# pre-push: run tests for changed areas only
+
+CHANGED=$(git diff --name-only @{u}...HEAD 2>/dev/null || git diff --name-only $(git merge-base HEAD origin/main)...HEAD)
+BACKEND=$(echo "$CHANGED" | grep -E '^api/')
+FRONTEND=$(echo "$CHANGED" | grep -E '^web/')
+FAILED=0
+
+if [ -n "$BACKEND" ]; then
+  echo "── backend tests ─────────────────────────────────────────────"
+  docker compose --profile test run --rm --build test || FAILED=1
+fi
+
+if [ -n "$FRONTEND" ]; then
+  echo "── frontend tests ────────────────────────────────────────────"
+  (cd web && npm run test) || FAILED=1
+fi
+
+[ "$FAILED" -eq 0 ] || { echo ""; echo "pre-push checks failed — fix the issues above and try again"; exit 1; }

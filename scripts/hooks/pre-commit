@@ -1,0 +1,21 @@
+#!/bin/sh
+# pre-commit: run linters, formatters, and tests for changed areas only
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
+BACKEND=$(echo "$STAGED" | grep -E '^api/')
+FRONTEND=$(echo "$STAGED" | grep -E '^web/')
+FAILED=0
+
+if [ -n "$BACKEND" ]; then
+  echo "── backend ───────────────────────────────────────────────────"
+  ruff check api/app api/tests                           || FAILED=1
+  ruff format --check api/app api/tests                  || FAILED=1
+fi
+
+if [ -n "$FRONTEND" ]; then
+  echo "── frontend ──────────────────────────────────────────────────"
+  (cd web && npm run lint)                               || FAILED=1
+  (cd web && npm run format:check)                       || FAILED=1
+fi
+
+[ "$FAILED" -eq 0 ] || { echo ""; echo "pre-commit checks failed — fix the issues above and try again"; exit 1; }
